@@ -50,6 +50,7 @@ class PacerCueServiceTest {
     service =
         new PacerCueService(
             new FallbackCuePolicy(MAX_HR),
+            null,
             published::add,
             mutableClock,
             COOLDOWN_SECONDS,

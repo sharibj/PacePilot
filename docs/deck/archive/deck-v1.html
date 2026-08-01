@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pace Pilot</title>
+    <script src="./gsap.min.js"></script>
+    <style>
+      :root {
+        --accent: #2dd4bf;
+        --accent2: #a855f7;
+        --hot: #fb7185;
+        --ink: #eaecee;
+        --muted: #9ca8c4;
+        --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+        --mono: ui-monospace, "SF Mono", "Menlo", monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #05010f; overflow: hidden; font-family: var(--font); }
+      #stage {
+        position: absolute; top: 50%; left: 50%;
+        width: 1920px; height: 1080px;
+        transform: translate(-50%, -50%) scale(var(--scale, 1));
+        transform-origin: center;
+      }
+      .slide {
+        position: absolute; inset: 0; overflow: hidden; color: #fff;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        display: grid; place-items: center; text-align: center;
+      }
+      .slide.active { opacity: 1; visibility: visible; pointer-events: auto; }
+      canvas.fx { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+
+      /* living aurora blobs */
+      .aurora { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.5; z-index: 0; }
+      .a1 { width: 900px; height: 900px; background: var(--accent); top: -280px; left: -220px; }
+      .a2 { width: 820px; height: 820px; background: var(--accent2); bottom: -300px; right: -200px; opacity: 0.4; }
+      .a3 { width: 620px; height: 620px; background: var(--hot); top: 40%; left: 55%; opacity: 0.22; }
+
+      .content { position: relative; z-index: 2; padding: 0 150px; width: 100%; }
+      .eyebrow { font: 700 30px/1 var(--font); letter-spacing: 9px; text-transform: uppercase; color: var(--accent); margin-bottom: 30px; }
+      h1 { margin: 0; font-size: 168px; font-weight: 900; letter-spacing: -6px; line-height: 0.92; }
+      h2 { margin: 0 0 18px; font-size: 92px; font-weight: 800; letter-spacing: -2px; }
+      .sub { margin-top: 34px; font-size: 42px; color: var(--muted); font-weight: 500; }
+      .grad-text {
+        background: linear-gradient(100deg, var(--accent), var(--accent2), var(--accent));
+        background-size: 300% 100%;
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+      }
+
+      /* context: three pillars */
+      .pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-top: 54px; }
+      .pillar { background: rgba(137,209,255,0.06); border: 1px solid rgba(137,209,255,0.18); border-radius: 24px; padding: 40px 36px; text-align: left; position: relative; }
+      .pillar .tag { font: 700 22px/1 var(--font); letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+      .pillar h3 { margin: 16px 0 14px; font-size: 46px; font-weight: 800; }
+      .pillar p { margin: 0; font-size: 27px; line-height: 1.45; color: var(--muted); }
+      .pillar.live { border-color: rgba(251,113,133,0.55); background: rgba(251,113,133,0.08); }
+      .pillar.live .tag { color: var(--hot); }
+      .gap-line { margin-top: 46px; font-size: 34px; color: var(--ink); font-weight: 600; }
+      .gap-line b { color: var(--hot); }
+
+      /* challenge: bad vs good */
+      .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 46px; text-align: left; }
+      .vs .col { border-radius: 24px; padding: 40px 44px; }
+      .vs .bad { background: rgba(148,163,184,0.07); border: 1px solid rgba(148,163,184,0.22); }
+      .vs .good { background: rgba(45,212,191,0.09); border: 1px solid rgba(45,212,191,0.4); }
+      .vs .label { font: 700 22px/1 var(--font); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 22px; }
+      .vs .bad .label { color: var(--muted); }
+      .vs .good .label { color: var(--accent); }
+      .vs .quote { font-size: 34px; line-height: 1.4; font-weight: 500; }
+      .vs .bad .quote { color: #b6c0d4; }
+      .vs .caption { margin-top: 22px; font-size: 24px; color: var(--muted); }
+      .principle { margin-top: 48px; font-size: 40px; font-weight: 700; }
+      .principle span { color: var(--accent); }
+
+      /* solution: pipeline flow */
+      .flow { display: flex; align-items: stretch; justify-content: center; gap: 0; margin-top: 60px; flex-wrap: wrap; }
+      .node { background: rgba(137,209,255,0.06); border: 1px solid rgba(137,209,255,0.22); border-radius: 18px; padding: 26px 22px; width: 232px; text-align: center; }
+      .node .n-ic { font-size: 44px; margin-bottom: 12px; }
+      .node .n-t { font-size: 27px; font-weight: 700; }
+      .node .n-s { font-size: 20px; color: var(--muted); margin-top: 8px; line-height: 1.35; }
+      .node.brain { border-color: rgba(168,85,247,0.6); background: rgba(168,85,247,0.12); }
+      .node.voice { border-color: rgba(45,212,191,0.55); background: rgba(45,212,191,0.1); }
+      .arrow { align-self: center; font-size: 40px; color: var(--accent); padding: 0 12px; }
+      .loop-note { margin-top: 52px; font-size: 30px; color: var(--muted); }
+      .loop-note b { color: var(--accent); }
+
+      /* wow: the transcript */
+      .story-head { text-align: center; margin-bottom: 40px; }
+      .transcript { max-width: 1380px; margin: 0 auto; text-align: left; }
+      .beat { display: grid; grid-template-columns: 300px 1fr; gap: 30px; align-items: start; margin-bottom: 26px; }
+      .beat .phase { font: 700 24px/1.3 var(--font); letter-spacing: 2px; text-transform: uppercase; color: var(--accent); padding-top: 16px; }
+      .beat.warn .phase { color: var(--hot); }
+      .beat.win .phase { color: #fbbf24; }
+      .bubble { background: rgba(137,209,255,0.07); border: 1px solid rgba(137,209,255,0.2); border-left: 5px solid var(--accent); border-radius: 16px; padding: 22px 30px; font-size: 32px; line-height: 1.4; }
+      .beat.warn .bubble { border-left-color: var(--hot); background: rgba(251,113,133,0.08); }
+      .beat.win .bubble { border-left-color: #fbbf24; background: rgba(251,191,36,0.09); font-weight: 600; }
+      .story-tail { text-align: center; margin-top: 40px; font-size: 34px; font-weight: 600; }
+      .story-tail .chain { color: var(--accent); font-family: var(--mono); font-size: 28px; }
+
+      #counter { position: fixed; bottom: 24px; right: 28px; z-index: 50; font: 600 20px/1 var(--font); color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.35); padding: 8px 14px; border-radius: 999px; }
+      #hint { position: fixed; bottom: 24px; left: 28px; z-index: 50; font: 500 15px/1.4 var(--font); color: rgba(255,255,255,0.32); }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+
+      <!-- SLIDE 1: TITLE -->
+      <div class="slide" data-reveals="0">
+        <canvas class="fx" data-canvas="pulse"></canvas>
+        <div class="aurora a1"></div>
+        <div class="aurora a2"></div>
+        <div class="content">
+          <div class="eyebrow anim">The AI Running Coach</div>
+          <h1 class="anim grad-text">Pace&nbsp;Pilot</h1>
+          <div class="sub anim">Your AI co-pilot for every run. It builds the plan, then coaches you through it while you run.</div>
+        </div>
+      </div>
+
+      <!-- SLIDE 2: CONTEXT -->
+      <div class="slide" data-reveals="4">
+        <div class="aurora a1"></div>
+        <div class="content">
+          <div class="eyebrow anim">Context</div>
+          <h2 class="anim">Three things a runner needs</h2>
+          <div class="pillars">
+            <div class="pillar reveal">
+              <div class="tag">Plan</div>
+              <h3>Planner</h3>
+              <p>Build runs from fitness, goals and schedule. Tools exist for this.</p>
+            </div>
+            <div class="pillar reveal">
+              <div class="tag">Reflect</div>
+              <h3>Logger</h3>
+              <p>Log runs and track progress over time. Tools exist for this too.</p>
+            </div>
+            <div class="pillar live reveal">
+              <div class="tag">Live</div>
+              <h3>Pacer</h3>
+              <p>Guide effort and speed <i>during</i> the run. Today: a buddy, a watch, or a guess.</p>
+            </div>
+          </div>
+          <div class="gap-line reveal">Nobody connects the loop: <b>plan → live signals → adaptive cues → logged outcome.</b></div>
+        </div>
+      </div>
+
+      <!-- SLIDE 3: THE CHALLENGE -->
+      <div class="slide" data-reveals="3">
+        <div class="aurora a2"></div>
+        <div class="aurora a3"></div>
+        <div class="content">
+          <div class="eyebrow anim">The Challenge</div>
+          <h2 class="anim">A dashboard reports. A coach <span class="grad-text">decides</span>.</h2>
+          <div class="vs">
+            <div class="col bad reveal">
+              <div class="label">AI Fitness Dashboard</div>
+              <div class="quote">"Your pace is 5:14."</div>
+              <div class="caption">Speaks because it has new data.</div>
+            </div>
+            <div class="col good reveal">
+              <div class="label">AI Running Coach</div>
+              <div class="quote">"Your pace dropped but your heart rate didn't. You're starting to fatigue. Hold this effort. We're changing today's target."</div>
+              <div class="caption">Speaks because something meaningful happened.</div>
+            </div>
+          </div>
+          <div class="principle reveal">Design rule: <span>never speak just because there's new data.</span></div>
+        </div>
+      </div>
+
+      <!-- SLIDE 4: THE SOLUTION -->
+      <div class="slide" data-reveals="6">
+        <div class="aurora a1"></div>
+        <div class="content">
+          <div class="eyebrow anim">The Solution</div>
+          <h2 class="anim">One live loop, from stride to voice</h2>
+          <div class="flow">
+            <div class="node reveal"><div class="n-ic">🏃</div><div class="n-t">Simulator</div><div class="n-s">Telemetry: pace, HR, status</div></div>
+            <div class="arrow reveal">→</div>
+            <div class="node reveal"><div class="n-t">Unifier</div><div class="n-s">One canonical schema for any device</div></div>
+            <div class="arrow reveal">→</div>
+            <div class="node reveal"><div class="n-t">Aggregator</div><div class="n-s">Flags the moments that matter, like heart-rate drift, and drops the rest</div></div>
+            <div class="arrow reveal">→</div>
+            <div class="node brain reveal"><div class="n-ic">🧠</div><div class="n-t">Coach Agent</div><div class="n-s">Knows the plan &amp; today's target. Decides <i>if</i> and <i>what</i> to say</div></div>
+            <div class="arrow reveal">→</div>
+            <div class="node voice reveal"><div class="n-ic">🔊</div><div class="n-t">Voice</div><div class="n-s">Short cue → TTS → streamed to your ear</div></div>
+          </div>
+          <div class="loop-note reveal">RabbitMQ moves events between stages. <b>The agent stays quiet until something is worth saying.</b></div>
+        </div>
+      </div>
+
+      <!-- SLIDE 5: THE WOW FACTOR -->
+      <div class="slide" data-reveals="7">
+        <canvas class="fx" data-canvas="particles"></canvas>
+        <div class="content">
+          <div class="story-head">
+            <div class="eyebrow anim">The Wow Factor</div>
+            <h2 class="anim">One tempo run, coached in real time</h2>
+          </div>
+          <div class="transcript">
+            <div class="beat warn reveal">
+              <div class="phase">Prediction</div>
+              <div class="bubble">"You're 15 seconds ahead of target. You've done this before. Ease off."</div>
+            </div>
+            <div class="beat warn reveal">
+              <div class="phase">Live observation</div>
+              <div class="bubble">"I was going to let you run this one. But your heart rate's been above threshold for 90 seconds. We're backing off now."</div>
+            </div>
+            <div class="beat reveal">
+              <div class="phase">Adaptation</div>
+              <div class="bubble">"Good. That's the response I wanted. Settle here."</div>
+            </div>
+            <div class="beat reveal">
+              <div class="phase">History</div>
+              <div class="bubble">"Your last three tempo runs, you faded around here. You're not fading today. Let's use that."</div>
+            </div>
+            <div class="beat win reveal">
+              <div class="phase">Payoff</div>
+              <div class="bubble">"This is the moment we've been protecting. One kilometer left. Now you can race."</div>
+            </div>
+          </div>
+          <div class="story-tail reveal">
+            <span class="chain">history → prediction → observation → intervention → adaptation → payoff</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="counter">1 / 5</div>
+    <div id="hint">→ / Space / click: next · ← : back · F: fullscreen</div>
+
+    <script>
+      var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+      var stage = document.getElementById("stage");
+      var counter = document.getElementById("counter");
+      var idx = 0, revealed = 0, canvasLoops = {};
+
+      function fit() { stage.style.setProperty("--scale", Math.min(innerWidth / 1920, innerHeight / 1080)); }
+      addEventListener("resize", fit); fit();
+
+      // Pulse rings: a slow "heartbeat" radar behind the title
+      function startPulse(c) {
+        var ctx = c.getContext("2d"); c.width = 1920; c.height = 1080; var t = 0, raf;
+        var cx = 960, cy = 560;
+        (function draw() {
+          ctx.clearRect(0, 0, 1920, 1080);
+          for (var k = 0; k < 4; k++) {
+            var prog = ((t * 0.006) + k * 0.25) % 1;
+            var rad = prog * 900;
+            ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832);
+            ctx.strokeStyle = "rgba(45,212,191," + (0.35 * (1 - prog)) + ")";
+            ctx.lineWidth = 2; ctx.stroke();
+          }
+          t++; raf = requestAnimationFrame(draw);
+        })();
+        return function () { cancelAnimationFrame(raf); };
+      }
+      function startParticles(c) {
+        var ctx = c.getContext("2d"); c.width = 1920; c.height = 1080; var N = 70, p = [], raf;
+        for (var i = 0; i < N; i++) p.push({ x: Math.random() * 1920, y: Math.random() * 1080, vx: (Math.random() - .5) * .45, vy: (Math.random() - .5) * .45, r: Math.random() * 2.2 + 1 });
+        (function draw() {
+          ctx.clearRect(0, 0, 1920, 1080);
+          for (var i = 0; i < N; i++) { var a = p[i]; a.x += a.vx; a.y += a.vy; if (a.x < 0 || a.x > 1920) a.vx *= -1; if (a.y < 0 || a.y > 1080) a.vy *= -1;
+            ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, 6.28); ctx.fillStyle = "rgba(45,212,191,0.55)"; ctx.fill();
+            for (var j = i + 1; j < N; j++) { var b = p[j], dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx * dx + dy * dy);
+              if (d < 150) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.strokeStyle = "rgba(168,85,247," + (.14 * (1 - d / 150)) + ")"; ctx.stroke(); } } }
+          raf = requestAnimationFrame(draw);
+        })();
+        return function () { cancelAnimationFrame(raf); };
+      }
+      function runCanvas(slide, i) {
+        if (canvasLoops[i]) return;
+        var c = slide.querySelector("canvas.fx"); if (!c) return;
+        var kind = c.getAttribute("data-canvas");
+        canvasLoops[i] = kind === "particles" ? startParticles(c) : startPulse(c);
+      }
+      function stopCanvas(i) { if (canvasLoops[i]) { canvasLoops[i](); delete canvasLoops[i]; } }
+
+      gsap.to(".grad-text", { backgroundPositionX: "300%", duration: 8, ease: "none", repeat: -1 });
+      // gently drift the aurora blobs
+      gsap.utils.toArray(".aurora").forEach(function (el, k) {
+        gsap.to(el, { x: (k % 2 ? -80 : 90), y: (k % 2 ? 60 : -70), duration: 9 + k * 2, ease: "sine.inOut", repeat: -1, yoyo: true });
+      });
+
+      function enterSlide(i, fromBack) {
+        Object.keys(canvasLoops).forEach(function (k) { if (+k !== i) stopCanvas(+k); });
+        slides.forEach(function (s, k) { s.classList.toggle("active", k === i); });
+        var slide = slides[i];
+        counter.textContent = (i + 1) + " / " + slides.length;
+        runCanvas(slide, i);
+        var anim = slide.querySelectorAll(".anim");
+        gsap.killTweensOf(anim);
+        if (anim.length) gsap.fromTo(anim, { autoAlpha: 0, y: 30 }, { autoAlpha: 1, y: 0, duration: .55, stagger: .08, ease: "power3.out", overwrite: true });
+        var reveals = slide.querySelectorAll(".reveal");
+        if (fromBack) { revealed = reveals.length; gsap.set(reveals, { autoAlpha: 1, y: 0, scale: 1 }); }
+        else { revealed = 0; gsap.set(reveals, { autoAlpha: 0 }); }
+      }
+      function showNextReveal() {
+        var reveals = slides[idx].querySelectorAll(".reveal");
+        if (revealed >= reveals.length) return false;
+        gsap.fromTo(reveals[revealed], { autoAlpha: 0, y: 28, scale: .96 }, { autoAlpha: 1, y: 0, scale: 1, duration: .4, ease: "power2.out", overwrite: true });
+        revealed++; return true;
+      }
+      function next() { if (showNextReveal()) return; if (idx < slides.length - 1) { idx++; enterSlide(idx, false); } }
+      function prev() { if (idx > 0) { idx--; enterSlide(idx, true); } }
+
+      addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
+        else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
+        else if (e.key === "f" || e.key === "F") { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+      });
+      addEventListener("click", next);
+      enterSlide(0, false);
+    </script>
+  </body>
+</html>

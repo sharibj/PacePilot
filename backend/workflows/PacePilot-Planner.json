@@ -1,0 +1,577 @@
+{
+  "name": "PacePilot-Planner",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "=You are a helpful running coach.\n\nToday is {{ $today }}\nMy running calendar is as follows:\n- Half Marathon 23/08/26 (die Generalprobe)\n- Marathon 27/09/26 (BMW Berlin Marathon)\n\n**always start with a read_graph call**\n\nThe marathon is the ultimate goal and you are helping me to train for it so I can finish it with a pace of 7:30 or less.\n\nYou can access all my previous workouts and runs via the Strava tool.\n\nYou have access to my calendar, so you know which running events are planned in the future.\n\nYou should always use the Date and Time tool to orient yourself and determine the current date, so you can accurately answer questions like \"which runs did I do last week?\" or \"how many days before my next race?\"\n\nYou also have access to my running plan. Ignore the dates in there and only use it as a rough reference. You are encouraged to change and adjust it based on my actual progress.\n\nYour goal is to fine-tune and adjust my next runs based on my previous runs and future goals.\nAlways keep an eye on the running volume so you can push me to increase it sustainably.\n\nIf I ask you to tell me what's next, you should give me the next 3 runs based on all my previous runs and workouts, along with the timeline for the next race and the ultimate goal of completing the marathon.\n\nMemory: You have access to a persistent knowledge graph via the MCP Memory tools (create_entities, create_relations, add_observations, delete_observations, delete_entities, delete_relations, read_graph, search_nodes, open_nodes). Use it proactively to store and retrieve key information such as the user's running profile, race goals, training observations, performance trends, and any other relevant context — so you can provide personalized and consistent coaching across conversations.\n\nAt the start of each conversation, read the memory graph to recall previous context before responding."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "91b3ad65-a2a2-4b3d-a6db-b7833870b38e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Chat Message In').item.json.body.session_id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [
+        144,
+        272
+      ],
+      "id": "3a9ecc88-bb5e-4f90-93c9-50952eddcb57",
+      "name": "Redis Chat Memory",
+      "credentials": {
+        "redis": {
+          "id": "yNSXbnzGM359VSZV",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-6",
+          "cachedResultName": "Claude Sonnet 4.6"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        -160,
+        256
+      ],
+      "id": "05607007-0e93-4d0c-a856-b9d587efa35b",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "G337ZMGn2DZFK1vP",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Return_All', ``, 'boolean') }}"
+      },
+      "type": "n8n-nodes-base.stravaTool",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        384
+      ],
+      "id": "68d366fc-9110-4473-88ec-d3832a98b9c5",
+      "name": "Get many activities in Strava",
+      "credentials": {
+        "stravaOAuth2Api": {
+          "id": "vKWbIVNHl9cycl33",
+          "name": "Strava account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "b1df342c66597b7252e62f89e5f5f929f4322e43f29b116d82c8eb5c92535221@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "3Tigada"
+        },
+        "returnAll": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Return_All', ``, 'boolean') }}",
+        "timeMin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('After', ``, 'string') }}",
+        "timeMax": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Before', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        544,
+        160
+      ],
+      "id": "c314cfab-cb4d-476c-9bc1-ec02c1ce2185",
+      "name": "Get many events in 3Tigada",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "bz9VKncC12WBccQV",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Makes an HTTP request to get the current running plan",
+        "url": "http://host.docker.internal:8768/running-plan.md",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        768
+      ],
+      "id": "2b949273-b686-4278-adb0-4a3166083f5b",
+      "name": "Get current running plan"
+    },
+    {
+      "parameters": {
+        "operation": "getTimeBetweenDates",
+        "startDate": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start_Date', ``, 'string') }}",
+        "endDate": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End_Date', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -96
+      ],
+      "id": "35cbe54f-499f-47dc-ba79-0bcdcc983b31",
+      "name": "DayDifference"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [
+        512,
+        -96
+      ],
+      "id": "bc43e7bb-a191-41b6-8c55-e34dc62fab88",
+      "name": "CurrentDate"
+    },
+    {
+      "parameters": {
+        "operation": "addToDate",
+        "magnitude": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Date_to_Add_To', ``, 'string') }}",
+        "duration": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Duration', ``, 'number') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -96
+      ],
+      "id": "59204a5b-5a31-4925-85a2-24f133538ada",
+      "name": "Add Days"
+    },
+    {
+      "parameters": {
+        "operation": "subtractFromDate",
+        "magnitude": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Date_to_Subtract_From', ``, 'string') }}",
+        "duration": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Duration', ``, 'number') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -96
+      ],
+      "id": "9d3f3fcf-a465-4163-97db-51098ddcf0b7",
+      "name": "Subtract Days"
+    },
+    {
+      "parameters": {
+        "content": "## Date Tools",
+        "height": 176,
+        "width": 528
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        480,
+        -144
+      ],
+      "typeVersion": 1,
+      "id": "1a9739e8-c551-4f43-af0e-72c3c257bb4c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Calendar Tools",
+        "height": 256,
+        "width": 784,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        480,
+        80
+      ],
+      "typeVersion": 1,
+      "id": "63993fc7-9838-42e2-b07b-6640eebc8f43",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "b1df342c66597b7252e62f89e5f5f929f4322e43f29b116d82c8eb5c92535221@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "3Tigada"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', ``, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', ``, 'string') }}",
+        "useDefaultReminders": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Use_Default_Reminders', ``, 'boolean') }}",
+        "additionalFields": {
+          "allday": "yes",
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', ``, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', ``, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        752,
+        160
+      ],
+      "id": "c241f7c9-f030-4780-b092-c3a9a7f9ade4",
+      "name": "Create event in 3Tigada",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "bz9VKncC12WBccQV",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "b1df342c66597b7252e62f89e5f5f929f4322e43f29b116d82c8eb5c92535221@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "3Tigada"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', ``, 'string') }}",
+        "useDefaultReminders": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Use_Default_Reminders', ``, 'boolean') }}",
+        "updateFields": {
+          "allday": "yes",
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', ``, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', ``, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        944,
+        160
+      ],
+      "id": "2c92850f-5350-4ea4-b382-fd171a9c5041",
+      "name": "Update event in 3Tigada",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "bz9VKncC12WBccQV",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "b1df342c66597b7252e62f89e5f5f929f4322e43f29b116d82c8eb5c92535221@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "3Tigada"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        1136,
+        160
+      ],
+      "id": "5f66df11-8416-4f31-a644-3989deff9f31",
+      "name": "Delete event in 3Tigada",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "bz9VKncC12WBccQV",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "activityId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Activity_ID', ``, 'string') }}"
+      },
+      "type": "n8n-nodes-base.stravaTool",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        400
+      ],
+      "id": "8395f910-ecba-4762-941c-8c7ab498909e",
+      "name": "Get an activity in Strava",
+      "credentials": {
+        "stravaOAuth2Api": {
+          "id": "vKWbIVNHl9cycl33",
+          "name": "Strava account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Session List\n\n- 4773de9df5eb43beb287709d54782175\n\n- 89c81819ee0e4d7bb08869d5d2abd84c\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        -144
+      ],
+      "id": "df7eedc3-31ce-4d39-b619-b5c0390939f4",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://mcp-memory:8000/mcp",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.3,
+      "position": [
+        848,
+        640
+      ],
+      "id": "1227bb7a-3d03-4d64-b761-67939ab5c3bb",
+      "name": "MCP Client for Memory"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "planner-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c232681e-aa67-4064-b49b-02f34620c66c",
+      "name": "Chat Message In",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -512,
+        32
+      ],
+      "webhookId": "5d120762-c2fe-4e7f-8fd0-ebe5996cfd0d"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"session_id\": \"{{ $('Chat Message In').item.json.body.session_id }}\",\n  \"reply\": {{ JSON.stringify($json.output) }}\n}",
+        "options": {}
+      },
+      "id": "7ffe3146-d795-4ec1-aaa5-9c643ceaa55e",
+      "name": "Respond With Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        320
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many activities in Strava": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many events in 3Tigada": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get current running plan": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CurrentDate": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DayDifference": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Days": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create event in 3Tigada": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update event in 3Tigada": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete event in 3Tigada": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get an activity in Strava": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Client for Memory": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Message In": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond With Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "15ad76b1-f483-4eb6-a52c-4a54d58f2e9a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "a34826e5bd375df0cc64f59ef8c08ad805d37359a2ce549e06dad2d55c214713"
+  },
+  "nodeGroups": [],
+  "id": "kZnGsEZMn3pyzLzq",
+  "tags": []
+}

@@ -128,5 +128,47 @@ services:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
 
+  # ---- n8n stack (pacer + planner agentic workflows) ----
+  # n8n, its Redis chat-memory, and the memory MCP bridge all run on the project
+  # network so the backend reaches the webhook as http://n8n:5678 (no host.docker.internal
+  # hairpin). These flags are required: runners enabled, settings-file permission
+  # enforcement, and insecure cookie so the editor works over plain http.
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.23.3
+    ports:
+      - "5678:5678"
+    environment:
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Europe/Berlin}
+      TZ: ${TZ:-Europe/Berlin}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_SECURE_COOKIE: "false"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    restart: unless-stopped
+
+  n8n-redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass "${N8N_REDIS_PASSWORD:-n8n-redis-password}" --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - n8n_redis_data:/data
+    restart: unless-stopped
+
+  # Bridges the stdio-only @modelcontextprotocol/server-memory to StreamableHTTP/SSE
+  # via mcp-proxy so n8n's MCP Client Tool node can reach it at http://mcp-memory:8000/mcp.
+  mcp-memory:
+    build:
+      context: ./docker/mcp-memory
+    ports:
+      - "8011:8000"
+    volumes:
+      - n8n_mcp_memory:/data
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  n8n_data:
+  n8n_redis_data:
+  n8n_mcp_memory:
