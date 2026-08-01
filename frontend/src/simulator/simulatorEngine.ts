@@ -26,6 +26,12 @@ export interface SimState {
   distanceM: number;
   stepCount: number;
   heartRate: number;
+  /**
+   * User-set heart-rate target (bpm). When null the model drifts toward the
+   * status default; when set the model eases toward this value instead, so the
+   * user can push HR up (e.g. to trip the max-HR guardrail).
+   */
+  targetHeartRate: number | null;
 }
 
 /** Default target speeds (m/s) per status; only used when the status is "moving". */
@@ -47,6 +53,10 @@ const HEART_RATE_TARGET: Record<RunStatus, number> = {
 const MIN_SPEED_MPS = 0.5;
 const MAX_SPEED_MPS = 6.5;
 
+/** Heart-rate slider bounds (bpm). Upper bound sits above the guardrail so it's reachable. */
+const MIN_HEART_RATE = 50;
+const MAX_HEART_RATE = 200;
+
 /** Average stride length in metres, used to derive a plausible step count. */
 const STRIDE_M = 0.9;
 
@@ -65,15 +75,17 @@ export function createSession(status: RunStatus = 'running'): SimState {
     distanceM: 0,
     stepCount: 0,
     heartRate: HEART_RATE_TARGET[status],
+    targetHeartRate: null,
   };
 }
 
-/** Switch run status; resets the target speed to the status default. */
+/** Switch run status; resets the target speed to the status default and clears any HR override. */
 export function setStatus(state: SimState, status: RunStatus): SimState {
   return {
     ...state,
     status,
     targetSpeedMps: DEFAULT_TARGET_SPEED_MPS[status],
+    targetHeartRate: null,
   };
 }
 
@@ -88,6 +100,16 @@ export function nudgeSpeed(state: SimState, deltaMps: number): SimState {
 export function setTargetSpeed(state: SimState, targetMps: number): SimState {
   if (!isMoving(state.status)) return state;
   return { ...state, targetSpeedMps: clamp(targetMps, MIN_SPEED_MPS, MAX_SPEED_MPS) };
+}
+
+/** Override the heart-rate target (bpm) directly from a slider. */
+export function setHeartRate(state: SimState, bpm: number): SimState {
+  return { ...state, targetHeartRate: clamp(bpm, MIN_HEART_RATE, MAX_HEART_RATE) };
+}
+
+/** Drop the manual heart-rate override so HR drifts back toward the status default. */
+export function clearHeartRate(state: SimState): SimState {
+  return { ...state, targetHeartRate: null };
 }
 
 /**
@@ -107,7 +129,8 @@ export function tick(state: SimState, dtSeconds: number): SimState {
   const stepCount = Math.round(distanceM / STRIDE_M);
 
   // Heart rate eases toward the target; a mild jitter keeps it lively.
-  const hrTarget = HEART_RATE_TARGET[state.status];
+  // A manual override wins over the status default so the user can drive HR.
+  const hrTarget = state.targetHeartRate ?? HEART_RATE_TARGET[state.status];
   const jitter = (Math.random() - 0.5) * 2; // +/- 1 bpm
   const heartRate = clamp(
     approach(state.heartRate, hrTarget, 0.08 * dtSeconds * Math.max(1, dtSeconds)) + jitter,
@@ -146,7 +169,7 @@ export function toFrame(state: SimState): TelemetryFrame {
     metadata: METADATA,
     metrics: {
       heart_rate: { value: hr, unit: 'count/min', zone: heartRateZone(hr) },
-      pace: { current_pace_seconds_per_meter: pace, unit: 'min/mi' },
+      pace: { current_pace_seconds_per_meter: pace, unit: 'min/km' },
     },
     location: START_LOCATION,
   };
@@ -171,6 +194,16 @@ export function formatDuration(totalSeconds: number): string {
   const mm = minutes.toString().padStart(2, '0');
   const ss = seconds.toString().padStart(2, '0');
   return hours > 0 ? `${hours}:${mm}:${ss}` : `${minutes}:${ss}`;
+}
+
+/** Metres per second -> kilometres per hour. */
+export function mpsToKmh(mps: number): number {
+  return mps * 3.6;
+}
+
+/** Format a speed (m/s) as a metric "12.3 km/h" string. */
+export function formatSpeedKmh(mps: number): string {
+  return `${mpsToKmh(mps).toFixed(1)} km/h`;
 }
 
 // --- small numeric helpers ---
@@ -198,4 +231,4 @@ function heartRateZone(bpm: number): number {
   return 5;
 }
 
-export { MIN_SPEED_MPS, MAX_SPEED_MPS };
+export { MIN_SPEED_MPS, MAX_SPEED_MPS, MIN_HEART_RATE, MAX_HEART_RATE };

@@ -11,7 +11,7 @@ export interface HeartRateMetric {
 
 export interface PaceMetric {
   current_pace_seconds_per_meter: number;
-  unit: 'min/mi';
+  unit: 'min/km';
 }
 
 export interface TelemetryMetrics {
