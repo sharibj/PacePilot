@@ -1,0 +1,265 @@
+{
+  "name": "PacePilot-Pacer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pacer-cue",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a8fafb6a-de45-4769-ac93-c7c84b58d477",
+      "name": "Aggregated Event In",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -640,
+        0
+      ],
+      "webhookId": "109b2842-6702-4020-9cc0-582d5078946a"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=An aggregated telemetry event arrived for a live run. Decide if and what spoken cue to give the runner.\n\nEvent type: {{ $json.body.event_type }}\nWindow (seconds): {{ $json.body.window_seconds }}\nSummary: {{ JSON.stringify($json.body.summary) }}\nRun context: {{ JSON.stringify($json.body.run_context) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a live running pacer. You receive aggregated telemetry events during a run and decide whether to give the runner a short spoken cue.\n\nThe run context tells you the planned phase (e.g. warmup, tempo, interval, cooldown) and the target pace in seconds per km. Compare the runner's current average pace and heart rate against those targets.\n\nSHARED MEMORY (MCP knowledge graph):\nYou share a persistent knowledge graph with the Planner agent via the MCP Memory tools. Use the EXACT canonical entity names below — do NOT invent names like 'runner profile' (those do not exist and will error):\n- 'Runner' (Person): the athlete's profile, goals, constraints, devices.\n- 'Coaching Notes' (CoachingInsights): known issues like HR drift on long runs, tempo HR running too high.\n- 'Training Status Aug 2026' (TrainingLog): recent runs and HR trends.\n- 'Long Run Plan' and 'Weekly Load Plan' (TrainingPlan): the structured plan.\n- 'BMW Berlin Marathon 2026' and 'Half Marathon Generalprobe 2026' (Race): the goal races.\nTo recall context, prefer open_nodes(['Runner','Coaching Notes']) or search_nodes. If an entity is missing, treat it as 'no data' and proceed — never block on it. Do NOT write to the graph during live pacing; only read.\n\nKnown coaching context to weight your cues: this runner's heart rate tends to drift HIGH on long runs and tempo sessions (recent tempo HR 160-170, long-run HR ~159). Bias toward reining in effort when HR climbs.\n\nYour job:\n- Decide if a cue is warranted. Many events need NO cue — if the runner is on target and stable, set should_speak to false and return an empty cue string.\n- When a cue IS warranted, produce ONE short, natural English sentence (spoken aloud). Be specific and actionable: tell them to ease off, pick it up, hold steady, or settle into a target pace.\n- Set priority: \"high\" for safety concerns (e.g. heart rate drifting dangerously high), \"medium\" for meaningful pace corrections, \"low\" for gentle encouragement.\n- Set ttl_seconds to how long the cue stays relevant (typically 15-30). Cues expire; never send stale advice.\n\nSafety guardrail: if heart rate is very high relative to the phase, prioritize a calming/ease-off cue over hitting pace targets.\n\nYou may use the Calendar tool to see which planned run today's session maps to. Use tools sparingly — this is latency-sensitive live guidance.\n\nAlways respond in the required structured JSON format.",
+          "maxIterations": 3
+        }
+      },
+      "id": "9385eb1b-5484-4115-8569-e19a023fca56",
+      "name": "Pacer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-6",
+          "cachedResultName": "Claude Sonnet 4.6"
+        },
+        "options": {}
+      },
+      "id": "443791e0-de6d-4eac-942e-c3cd49178702",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        -160,
+        256
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "G337ZMGn2DZFK1vP",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Aggregated Event In').item.json.body.session_id }}"
+      },
+      "id": "83d85c68-8ad8-4b33-8cdb-34ecb5631c02",
+      "name": "Redis Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [
+        0,
+        256
+      ],
+      "credentials": {
+        "redis": {
+          "id": "yNSXbnzGM359VSZV",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "b1df342c66597b7252e62f89e5f5f929f4322e43f29b116d82c8eb5c92535221@group.calendar.google.com",
+          "cachedResultName": "3Tigada"
+        },
+        "returnAll": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Return_All', '', 'boolean') }}",
+        "timeMin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('After', '') }}",
+        "timeMax": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Before', '') }}",
+        "options": {}
+      },
+      "id": "436393cb-675d-461a-9ac7-96615d887c38",
+      "name": "Get many events in 3Tigada",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        320,
+        256
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "bz9VKncC12WBccQV",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://mcp-memory:8000/mcp",
+        "options": {}
+      },
+      "id": "f3c30cd8-d192-4f75-afd9-762d8ac3c8e3",
+      "name": "MCP Client for Memory",
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\"cue\":\"Ease back slightly for one minute, then settle to tempo pace.\",\"priority\":\"medium\",\"ttl_seconds\":20,\"should_speak\":true}"
+      },
+      "id": "3a39c65f-75c9-431e-a7c7-84221a7dc1a2",
+      "name": "Cue Format",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"event_id\": \"{{ $('Aggregated Event In').item.json.body.event_id }}\",\n  \"session_id\": \"{{ $('Aggregated Event In').item.json.body.session_id }}\",\n  \"cue\": {{ JSON.stringify($json.output.cue) }},\n  \"priority\": {{ JSON.stringify($json.output.priority) }},\n  \"ttl_seconds\": {{ $json.output.ttl_seconds }},\n  \"should_speak\": {{ $json.output.should_speak }}\n}",
+        "options": {}
+      },
+      "id": "f676dc97-d400-43f9-8734-378bf5475bb4",
+      "name": "Respond With Cue",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Pacer: aggregated event -> cue\n\nPOST /pacer-cue with the aggregated event contract.\nReturns { cue, priority, ttl_seconds, should_speak }.",
+        "color": 4
+      },
+      "id": "f9b59327-51a3-4fb8-9342-92e1bc2aa3be",
+      "name": "Sticky Note e3d1a4bc",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        112,
+        304
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Aggregated Event In": {
+      "main": [
+        [
+          {
+            "node": "Pacer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pacer Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond With Cue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Pacer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Pacer Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many events in 3Tigada": {
+      "ai_tool": [
+        [
+          {
+            "node": "Pacer Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Client for Memory": {
+      "ai_tool": [
+        [
+          {
+            "node": "Pacer Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cue Format": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Pacer Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "218cf5a7-7ead-4969-9c08-3ea30225f7dd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a34826e5bd375df0cc64f59ef8c08ad805d37359a2ce549e06dad2d55c214713"
+  },
+  "nodeGroups": [],
+  "id": "161af4cAwKsmQree",
+  "tags": []
+}
