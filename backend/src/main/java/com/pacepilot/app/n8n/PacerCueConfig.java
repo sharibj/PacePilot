@@ -52,8 +52,7 @@ public class PacerCueConfig {
     // HC5) then hand out a half-closed socket on the next call, which stalls until the read timeout
     // so the request never reaches n8n. A non-pooling factory honors the close and avoids that.
     RestClient.Builder timed =
-        restClientBuilder.requestFactory(
-            ClientHttpRequestFactoryBuilder.simple().build(settings));
+        restClientBuilder.requestFactory(ClientHttpRequestFactoryBuilder.simple().build(settings));
     return new N8nCueResolver(timed, meters, webhookUrl);
   }
 

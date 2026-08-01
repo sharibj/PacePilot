@@ -62,6 +62,8 @@ pacer:
   n8n:
     pacer-webhook-url: ${N8N_PACER_WEBHOOK_URL:}
     timeout-ms: ${PACER_N8N_TIMEOUT_MS:1200}
+    planner-webhook-url: ${N8N_PLANNER_WEBHOOK_URL:}
+    planner-timeout-ms: ${PACER_N8N_PLANNER_TIMEOUT_MS:30000}
   tts:
     elevenlabs-api-key: ${ELEVENLABS_API_KEY:}
     elevenlabs-voice-id: ${ELEVENLABS_VOICE_ID:}
