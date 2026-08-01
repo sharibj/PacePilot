@@ -1,0 +1,9 @@
+**/.git
+**/node_modules
+**/dist
+**/build
+**/.gradle
+**/.env
+**/.env.*
+!**/.env.example
+**/.DS_Store

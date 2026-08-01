@@ -1,0 +1,28 @@
+model_list:
+  # ---- SAP Hai proxy (OpenAI-compatible, served under /openai/v1) ----
+  - model_name: hai-gpt-4.1-mini
+    litellm_params:
+      model: openai/gpt-4.1-mini
+      api_base: os.environ/HAI_API_BASE
+      api_key: os.environ/HAI_API_KEY
+
+  - model_name: hai-gpt-5-mini
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_base: os.environ/HAI_API_BASE
+      api_key: os.environ/HAI_API_KEY
+
+  # ---- Local Ollama ----
+  - model_name: ollama-qwen3
+    litellm_params:
+      model: ollama_chat/qwen3:8b
+      api_base: os.environ/OLLAMA_API_BASE
+
+  # ---- Direct OpenAI (kept as an example; needs OPENAI_API_KEY) ----
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
