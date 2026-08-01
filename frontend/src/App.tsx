@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createItem, deleteItem, listItems, type Item } from './shared/api/items';
 import { sendChat } from './shared/api/chat';
+import Simulator from './simulator/Simulator';
 
 function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
@@ -107,6 +108,7 @@ export default function App() {
   return (
     <main className="app">
       <h1>scaffold-fullstack-java</h1>
+      <Simulator />
       <ItemsPage />
       <ChatBox />
     </main>
