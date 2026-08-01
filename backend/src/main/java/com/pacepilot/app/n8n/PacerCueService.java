@@ -20,10 +20,10 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 /**
  * Consumes aggregated telemetry events and produces spoken text cues.
  *
- * <p>Pipeline stage: {@code telemetry.aggregated -> [this] -> cue.text}. For this phase the n8n
- * webhook is stubbed (URL unset), so every event is resolved through the deterministic {@link
- * FallbackCuePolicy}. A real HTTP resolver can later be slotted in front of the fallback without
- * touching the idempotency / cooldown logic here.
+ * <p>Pipeline stage: {@code telemetry.aggregated -> [this] -> cue.text}. When the n8n webhook URL
+ * is configured, an {@link N8nCueResolver} produces the cue via the agentic workflow and the
+ * deterministic {@link FallbackCuePolicy} is used only on failure/timeout. When the URL is unset
+ * the fallback runs for every event.
  *
  * <p>Reliability rules (see {@code docs/pacer-contracts.md} section 6):
  *
@@ -45,6 +45,7 @@ public class PacerCueService {
   private static final int MAX_SEEN_EVENT_IDS = 10_000;
 
   private final FallbackCuePolicy fallbackCuePolicy;
+  private final N8nCueResolver n8nCueResolver;
   private final CuePublisher cuePublisher;
   private final Clock clock;
   private final Duration cooldown;
@@ -64,11 +65,13 @@ public class PacerCueService {
 
   public PacerCueService(
       FallbackCuePolicy fallbackCuePolicy,
+      N8nCueResolver n8nCueResolver,
       CuePublisher cuePublisher,
       Clock clock,
       int cooldownSeconds,
       MeterRegistry meters) {
     this.fallbackCuePolicy = fallbackCuePolicy;
+    this.n8nCueResolver = n8nCueResolver;
     this.cuePublisher = cuePublisher;
     this.clock = clock;
     this.cooldown = Duration.ofSeconds(cooldownSeconds);
@@ -107,7 +110,7 @@ public class PacerCueService {
 
     Timer.Sample sample = Timer.start(meters);
     CueTextEvent cue = resolveCue(event);
-    sample.stop(meters.timer("pacer.n8n.latency"));
+    sample.stop(meters.timer("pacer.cue.resolve.latency"));
     if (cue == null || cue.cue() == null || cue.cue().isBlank()) {
       log.debug("No cue produced for event_id={}", event.eventId());
       meters.counter("pacer.cue.suppressed", "reason", "empty").increment();
@@ -133,11 +136,19 @@ public class PacerCueService {
   }
 
   /**
-   * Resolves a cue for the event. The n8n HTTP path is a clean seam for later: when a webhook is
-   * configured, an HTTP resolver would be tried here first and this fallback used on
-   * failure/timeout. For now the fallback is always used.
+   * Resolves a cue for the event. When an {@link N8nCueResolver} is configured (the webhook URL is
+   * set), the n8n agent is tried first; on failure or timeout it returns {@code null} and we fall
+   * back to the deterministic {@link FallbackCuePolicy}. A successful n8n response with a blank cue
+   * (the agent chose not to speak) is honored as-is and does <em>not</em> trigger the fallback.
    */
   private CueTextEvent resolveCue(AggregatedEvent event) {
+    if (n8nCueResolver != null) {
+      CueTextEvent cue = n8nCueResolver.resolve(event);
+      if (cue != null) {
+        return cue;
+      }
+      meters.counter("pacer.cue.fallback").increment();
+    }
     return fallbackCuePolicy.decide(event);
   }
 }
