@@ -32,6 +32,22 @@ services:
     volumes:
       - ./litellm/litellm_config.yaml:/app/config.yaml:ro
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-pacer}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-pacer_dev}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   # Observability: OTel Collector + Prometheus + Tempo + Loki + Grafana in one image.
   lgtm:
     image: grafana/otel-lgtm:0.11.9
@@ -56,12 +72,30 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-sk-anything}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       APP_NAME: ${APP_NAME:-pace-pilot}
+      # RabbitMQ (pacer event broker)
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER:-pacer}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-pacer_dev}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      # Pacer agentic decision (n8n) — stubbed for now; fallback cue used if unset.
+      N8N_PACER_WEBHOOK_URL: ${N8N_PACER_WEBHOOK_URL:-}
+      N8N_PLANNER_WEBHOOK_URL: ${N8N_PLANNER_WEBHOOK_URL:-}
+      # TTS (ElevenLabs) — stubbed for now; text-only cue used if unset.
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      # Pacer tuning
+      PACER_CUE_COOLDOWN_SECONDS: ${PACER_CUE_COOLDOWN_SECONDS:-20}
+      PACER_N8N_TIMEOUT_MS: ${PACER_N8N_TIMEOUT_MS:-1200}
+      PACER_MAX_HR_GUARDRAIL: ${PACER_MAX_HR_GUARDRAIL:-190}
       OTEL_METRICS_URL: http://lgtm:4318/v1/metrics
       OTEL_TRACES_URL: http://lgtm:4318/v1/traces
       OTEL_LOGS_URL: http://lgtm:4318/v1/logs
       OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       litellm:
         condition: service_started
