@@ -3,3 +3,18 @@ spring:
     openai:
       api-key: test-key
       base-url: http://localhost:4000
+
+# Pipeline RabbitMQ consumers are OFF by default in tests so that topology and
+# round-trip tests can read their own published messages without a live listener
+# draining the queue. Each module integration test re-enables only the listener
+# it exercises via @DynamicPropertySource.
+pacer:
+  listener:
+    unifier:
+      enabled: false
+    aggregator:
+      enabled: false
+    n8n:
+      enabled: false
+    tts:
+      enabled: false

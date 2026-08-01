@@ -1,0 +1,144 @@
+package com.pacepilot.app.realtime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+import com.pacepilot.app.messaging.dto.PacerAudioMessage;
+import java.net.URI;
+import java.time.Duration;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketHttpHeaders;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.RabbitMQContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Testcontainers
+class TelemetryWebSocketIntegrationTest {
+
+  @Container @ServiceConnection
+  static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+  @Container @ServiceConnection
+  static RabbitMQContainer rabbitmq = new RabbitMQContainer("rabbitmq:3.13-management-alpine");
+
+  @DynamicPropertySource
+  static void props(DynamicPropertyRegistry registry) {
+    registry.add("spring.ai.openai.api-key", () -> "test-key");
+    registry.add("spring.ai.openai.base-url", () -> "http://localhost:4000");
+    // Allow the test WebSocket client (no Origin header) to connect.
+    registry.add("app.cors.allowed-origin", () -> "*");
+  }
+
+  @LocalServerPort int port;
+
+  @Autowired SessionRegistry registry;
+  @Autowired PacerAudioSender audioSender;
+  @Autowired io.micrometer.core.instrument.MeterRegistry meters;
+
+  private static final String SESSION_ID = "8e5c1b4a-73d1-4e6e-9051-ceb6a45f611a";
+
+  @Test
+  void telemetryFrameReachesRawQueue() throws Exception {
+    double before = ingestedCount();
+
+    StandardWebSocketClient client = new StandardWebSocketClient();
+    WebSocketSession session =
+        client
+            .execute(
+                new TextWebSocketHandler(),
+                new WebSocketHttpHeaders(),
+                URI.create("ws://localhost:" + port + "/ws/telemetry"))
+            .get(5, java.util.concurrent.TimeUnit.SECONDS);
+
+    session.sendMessage(new TextMessage(sampleTelemetryJson()));
+
+    // The frame is registered and published to telemetry.raw; assert via the
+    // ingestion counter so the check is independent of who consumes the queue.
+    await()
+        .atMost(Duration.ofSeconds(5))
+        .untilAsserted(() -> assertThat(ingestedCount()).isEqualTo(before + 1));
+
+    session.close();
+  }
+
+  private double ingestedCount() {
+    var counter = meters.find("pacer.telemetry.ingested").counter();
+    return counter == null ? 0.0 : counter.count();
+  }
+
+  @Test
+  void backendCanPushAudioToConnectedClient() throws Exception {
+    CopyOnWriteArrayList<String> received = new CopyOnWriteArrayList<>();
+    AtomicReference<WebSocketSession> clientSession = new AtomicReference<>();
+
+    StandardWebSocketClient client = new StandardWebSocketClient();
+    WebSocketSession session =
+        client
+            .execute(
+                new TextWebSocketHandler() {
+                  @Override
+                  protected void handleTextMessage(WebSocketSession s, TextMessage message) {
+                    received.add(message.getPayload());
+                  }
+                },
+                new WebSocketHttpHeaders(),
+                URI.create("ws://localhost:" + port + "/ws/telemetry"))
+            .get(5, java.util.concurrent.TimeUnit.SECONDS);
+    clientSession.set(session);
+
+    // Send a telemetry frame so the backend registers this session under SESSION_ID.
+    session.sendMessage(new TextMessage(sampleTelemetryJson()));
+    await().atMost(Duration.ofSeconds(5)).until(() -> registry.isConnected(SESSION_ID));
+
+    boolean delivered =
+        audioSender.send(
+            PacerAudioMessage.textOnly(SESSION_ID, "evt-1", "Ease back to tempo pace."));
+    assertThat(delivered).isTrue();
+
+    await()
+        .atMost(Duration.ofSeconds(5))
+        .untilAsserted(
+            () -> {
+              assertThat(received).anyMatch(m -> m.contains("pacer_audio"));
+              assertThat(received).anyMatch(m -> m.contains("Ease back to tempo pace."));
+            });
+
+    session.close(CloseStatus.NORMAL);
+  }
+
+  private static String sampleTelemetryJson() {
+    return """
+        {
+          "event_id": "3d6fcb36-f66f-4c43-b0a4-3af54c730f57",
+          "session_id": "%s",
+          "status": "running",
+          "timestamp": "2026-08-01T09:34:00Z",
+          "duration_seconds": 1245.8,
+          "activity_type": "running",
+          "step_count": 1567,
+          "speed_mps": 5.2,
+          "distance_m": 4210.5,
+          "metrics": {
+            "heart_rate": { "value": 154.0, "unit": "count/min", "zone": 3 },
+            "pace": { "current_pace_seconds_per_meter": 0.31, "unit": "min/mi" }
+          }
+        }
+        """
+        .formatted(SESSION_ID);
+  }
+}

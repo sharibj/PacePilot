@@ -1,5 +1,8 @@
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   color: #1a1a1a;
   background: #f5f6f8;
 }
@@ -98,4 +101,134 @@ li {
   padding: 0.75rem;
   border-radius: 6px;
   margin-top: 0.75rem;
+}
+
+/* --- Telemetry simulator --- */
+.sim .row {
+  flex-wrap: wrap;
+}
+
+.sim-conn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.sim-badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  color: #fff;
+  background: #6b7280;
+}
+
+.sim-badge--open {
+  background: #16a34a;
+}
+
+.sim-badge--connecting {
+  background: #d97706;
+}
+
+.sim-badge--error {
+  background: #b91c1c;
+}
+
+.sim-badge--closed {
+  background: #6b7280;
+}
+
+.sim-endpoint {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-family: ui-monospace, monospace;
+}
+
+.sim-live {
+  font-size: 0.8rem;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.sim-controls {
+  margin-bottom: 0.75rem;
+}
+
+button.sim-inactive {
+  background: #e5e7eb;
+  color: #1a1a1a;
+}
+
+button.sim-active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.sim-field {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.sim-field label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.sim-field input[type='range'] {
+  width: 100%;
+  flex: 1;
+}
+
+.sim-speed-row {
+  align-items: center;
+}
+
+.sim-speed-row button {
+  min-width: 2.5rem;
+}
+
+.sim-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.sim-metric {
+  background: #f9fafb;
+  border: 1px solid #eef0f3;
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+}
+
+.sim-metric dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+}
+
+.sim-metric dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.sim-cue h3,
+.sim-cue-history h3 {
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.sim-muted {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.sim-cue-history li {
+  font-size: 0.85rem;
+  gap: 0.5rem;
 }
