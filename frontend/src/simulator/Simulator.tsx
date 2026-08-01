@@ -3,10 +3,15 @@ import {
   createSession,
   formatDuration,
   formatPace,
+  formatSpeedKmh,
   isMoving,
+  MAX_HEART_RATE,
   MAX_SPEED_MPS,
+  MIN_HEART_RATE,
   MIN_SPEED_MPS,
+  mpsToKmh,
   nudgeSpeed,
+  setHeartRate,
   setStatus,
   setTargetSpeed,
   type SimState,
@@ -96,6 +101,7 @@ export default function Simulator() {
   const changeStatus = (status: RunStatus) => setSim((prev) => setStatus(prev, status));
   const bumpSpeed = (deltaMps: number) => setSim((prev) => nudgeSpeed(prev, deltaMps));
   const onSpeedSlider = (value: number) => setSim((prev) => setTargetSpeed(prev, value));
+  const onHeartRateSlider = (bpm: number) => setSim((prev) => setHeartRate(prev, bpm));
 
   const frame = useMemo(() => toFrame(sim), [sim]);
   const pace = frame.metrics.pace.current_pace_seconds_per_meter;
@@ -138,7 +144,12 @@ export default function Simulator() {
 
       <div className="sim-field">
         <label htmlFor="sim-speed">
-          Target speed: <strong>{moving ? `${sim.targetSpeedMps.toFixed(1)} m/s` : '—'}</strong>
+          Pace:{' '}
+          <strong>
+            {moving
+              ? `${formatSpeedKmh(sim.speedMps)} · ${formatPace(1 / sim.speedMps)}`
+              : '—'}
+          </strong>
         </label>
         <div className="row sim-speed-row">
           <button className="sim-inactive" onClick={() => bumpSpeed(-0.2)} disabled={!moving}>
@@ -150,7 +161,7 @@ export default function Simulator() {
             min={MIN_SPEED_MPS}
             max={MAX_SPEED_MPS}
             step={0.1}
-            value={sim.targetSpeedMps}
+            value={sim.speedMps}
             disabled={!moving}
             onChange={(e) => onSpeedSlider(Number(e.target.value))}
           />
@@ -158,6 +169,21 @@ export default function Simulator() {
             +
           </button>
         </div>
+      </div>
+
+      <div className="sim-field">
+        <label htmlFor="sim-hr">
+          Heart rate: <strong>{Math.round(sim.heartRate)} bpm</strong>
+        </label>
+        <input
+          id="sim-hr"
+          type="range"
+          min={MIN_HEART_RATE}
+          max={MAX_HEART_RATE}
+          step={1}
+          value={Math.round(sim.heartRate)}
+          onChange={(e) => onHeartRateSlider(Number(e.target.value))}
+        />
       </div>
 
       <div className="sim-field">
@@ -179,7 +205,7 @@ export default function Simulator() {
         <Metric label="Status" value={sim.status} />
         <Metric label="Pace" value={formatPace(pace)} />
         <Metric label="Heart rate" value={`${frame.metrics.heart_rate.value} bpm`} />
-        <Metric label="Speed" value={`${frame.speed_mps.toFixed(2)} m/s`} />
+        <Metric label="Speed" value={`${mpsToKmh(frame.speed_mps).toFixed(1)} km/h`} />
         <Metric label="Distance" value={`${(frame.distance_m / 1000).toFixed(2)} km`} />
         <Metric label="Duration" value={formatDuration(frame.duration_seconds)} />
       </dl>

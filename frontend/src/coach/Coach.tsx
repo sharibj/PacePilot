@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { api } from '../shared/api/client';
 
 interface Message {
@@ -33,10 +34,7 @@ export default function Coach() {
         message: text,
         sessionId: sessionId.current,
       });
-      setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: 'coach', text: res.reply },
-      ]);
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'coach', text: res.reply }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
     } finally {
@@ -62,10 +60,18 @@ export default function Coach() {
         )}
         {messages.map((m) => (
           <div key={m.id} className={`coach-msg coach-msg-${m.role}`}>
-            {m.text}
+            {m.role === 'coach' ? (
+              <div className="coach-markdown">
+                <ReactMarkdown>{m.text}</ReactMarkdown>
+              </div>
+            ) : (
+              m.text
+            )}
           </div>
         ))}
-        {sending && <div className="coach-msg coach-msg-coach coach-thinking">Coach is thinking…</div>}
+        {sending && (
+          <div className="coach-msg coach-msg-coach coach-thinking">Coach is thinking…</div>
+        )}
       </div>
       {error && <p className="coach-error">{error}</p>}
       <div className="row">

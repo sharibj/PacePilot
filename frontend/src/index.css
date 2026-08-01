@@ -291,8 +291,82 @@ button.tab.tab-active {
   font-style: italic;
 }
 
+.coach-markdown {
+  white-space: normal;
+}
+
+.coach-markdown > :first-child {
+  margin-top: 0;
+}
+
+.coach-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.coach-markdown p {
+  margin: 0.4rem 0;
+}
+
+.coach-markdown ul,
+.coach-markdown ol {
+  list-style: revert;
+  padding-left: 1.25rem;
+  margin: 0.4rem 0;
+}
+
+.coach-markdown li {
+  display: list-item;
+  justify-content: initial;
+  padding: 0.1rem 0;
+  border-bottom: none;
+}
+
+.coach-markdown h1,
+.coach-markdown h2,
+.coach-markdown h3 {
+  font-size: 1rem;
+  margin: 0.6rem 0 0.3rem;
+}
+
+.coach-markdown code {
+  background: #e2e8f0;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}
+
+.coach-markdown pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 0.6rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.coach-markdown pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.coach-markdown a {
+  color: #2563eb;
+}
+
+.coach-markdown table {
+  border-collapse: collapse;
+  margin: 0.4rem 0;
+}
+
+.coach-markdown th,
+.coach-markdown td {
+  border: 1px solid #cbd5e1;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
 .coach-error {
   color: #b91c1c;
   font-size: 0.9rem;
 }
-

@@ -18,20 +18,19 @@ const START_LOCATION: TelemetryLocation = {
 export interface SimState {
   sessionId: string;
   status: RunStatus;
-  /** Target ground speed in m/s the user has dialed in for the "moving" statuses. */
-  targetSpeedMps: number;
-  /** Current (smoothed) speed in m/s. */
+  /**
+   * Ground-truth speed in m/s the user has dialed in via the slider. This is
+   * emitted as-is when moving (no easing) so the slider is the source of truth.
+   */
   speedMps: number;
   durationSeconds: number;
   distanceM: number;
   stepCount: number;
-  heartRate: number;
   /**
-   * User-set heart-rate target (bpm). When null the model drifts toward the
-   * status default; when set the model eases toward this value instead, so the
-   * user can push HR up (e.g. to trip the max-HR guardrail).
+   * Ground-truth heart rate (bpm) from the slider. Emitted as-is so the slider
+   * always wins — there is no auto-drift toward a status default.
    */
-  targetHeartRate: number | null;
+  heartRate: number;
 }
 
 /** Default target speeds (m/s) per status; only used when the status is "moving". */
@@ -42,8 +41,8 @@ export const DEFAULT_TARGET_SPEED_MPS: Record<RunStatus, number> = {
   paused: 0,
 };
 
-/** Heart-rate targets (bpm) the model drifts toward per status. */
-const HEART_RATE_TARGET: Record<RunStatus, number> = {
+/** Initial heart-rate (bpm) seeded per status when a session starts or status changes. */
+const HEART_RATE_DEFAULT: Record<RunStatus, number> = {
   running: 158,
   walking: 110,
   stopped: 85,
@@ -69,81 +68,57 @@ export function createSession(status: RunStatus = 'running'): SimState {
   return {
     sessionId: crypto.randomUUID(),
     status,
-    targetSpeedMps: target,
     speedMps: isMoving(status) ? target : 0,
     durationSeconds: 0,
     distanceM: 0,
     stepCount: 0,
-    heartRate: HEART_RATE_TARGET[status],
-    targetHeartRate: null,
+    heartRate: HEART_RATE_DEFAULT[status],
   };
 }
 
-/** Switch run status; resets the target speed to the status default and clears any HR override. */
+/** Switch run status; reseeds speed and heart rate to the status defaults. */
 export function setStatus(state: SimState, status: RunStatus): SimState {
   return {
     ...state,
     status,
-    targetSpeedMps: DEFAULT_TARGET_SPEED_MPS[status],
-    targetHeartRate: null,
+    speedMps: isMoving(status) ? DEFAULT_TARGET_SPEED_MPS[status] : 0,
+    heartRate: HEART_RATE_DEFAULT[status],
   };
 }
 
-/** Nudge the target speed (m/s) for moving statuses. Clamped to a sane range. */
+/** Nudge the speed (m/s) for moving statuses. Clamped to a sane range. */
 export function nudgeSpeed(state: SimState, deltaMps: number): SimState {
   if (!isMoving(state.status)) return state;
-  const targetSpeedMps = clamp(state.targetSpeedMps + deltaMps, MIN_SPEED_MPS, MAX_SPEED_MPS);
-  return { ...state, targetSpeedMps };
+  const speedMps = clamp(state.speedMps + deltaMps, MIN_SPEED_MPS, MAX_SPEED_MPS);
+  return { ...state, speedMps };
 }
 
-/** Set the target speed (m/s) directly, e.g. from a slider. */
+/** Set the speed (m/s) directly from the slider. This is emitted as-is. */
 export function setTargetSpeed(state: SimState, targetMps: number): SimState {
   if (!isMoving(state.status)) return state;
-  return { ...state, targetSpeedMps: clamp(targetMps, MIN_SPEED_MPS, MAX_SPEED_MPS) };
+  return { ...state, speedMps: clamp(targetMps, MIN_SPEED_MPS, MAX_SPEED_MPS) };
 }
 
-/** Override the heart-rate target (bpm) directly from a slider. */
+/** Set the heart rate (bpm) directly from the slider. This is emitted as-is. */
 export function setHeartRate(state: SimState, bpm: number): SimState {
-  return { ...state, targetHeartRate: clamp(bpm, MIN_HEART_RATE, MAX_HEART_RATE) };
-}
-
-/** Drop the manual heart-rate override so HR drifts back toward the status default. */
-export function clearHeartRate(state: SimState): SimState {
-  return { ...state, targetHeartRate: null };
+  return { ...state, heartRate: clamp(bpm, MIN_HEART_RATE, MAX_HEART_RATE) };
 }
 
 /**
- * Advance the simulation by `dtSeconds`.
- * - integrates distance from speed
- * - eases speed toward its target (or 0 when not moving)
- * - drifts heart rate toward the status target
+ * Advance the simulation by `dtSeconds`. Only distance/duration accumulate;
+ * speed and heart rate are ground truth from the sliders and are left untouched.
  */
 export function tick(state: SimState, dtSeconds: number): SimState {
   const moving = isMoving(state.status);
-  const goalSpeed = moving ? state.targetSpeedMps : 0;
-
-  // Ease speed toward the goal so pace changes are gradual, not instant.
-  const speedMps = approach(state.speedMps, goalSpeed, 0.35 * dtSeconds);
+  const speedMps = moving ? state.speedMps : 0;
 
   const distanceM = state.distanceM + speedMps * dtSeconds;
   const stepCount = Math.round(distanceM / STRIDE_M);
 
-  // Heart rate eases toward the target; a mild jitter keeps it lively.
-  // A manual override wins over the status default so the user can drive HR.
-  const hrTarget = state.targetHeartRate ?? HEART_RATE_TARGET[state.status];
-  const jitter = (Math.random() - 0.5) * 2; // +/- 1 bpm
-  const heartRate = clamp(
-    approach(state.heartRate, hrTarget, 0.08 * dtSeconds * Math.max(1, dtSeconds)) + jitter,
-    50,
-    200,
-  );
-
   return {
     ...state,
-    speedMps,
     distanceM,
     stepCount,
-    heartRate,
     durationSeconds: state.durationSeconds + dtSeconds,
   };
 }
@@ -210,12 +185,6 @@ export function formatSpeedKmh(mps: number): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
-}
-
-/** Move `current` toward `target` by up to `rate` fraction of the gap. */
-function approach(current: number, target: number, rate: number): number {
-  const factor = clamp(rate, 0, 1);
-  return current + (target - current) * factor;
 }
 
 function round(value: number, decimals: number): number {
