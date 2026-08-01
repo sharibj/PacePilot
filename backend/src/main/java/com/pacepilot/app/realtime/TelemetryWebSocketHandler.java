@@ -1,8 +1,10 @@
 package com.pacepilot.app.realtime;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pacepilot.app.messaging.dto.TelemetryEvent;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -40,9 +42,23 @@ public class TelemetryWebSocketHandler extends TextWebSocketHandler {
 
   @Override
   protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+    JsonNode root;
+    try {
+      root = objectMapper.readTree(message.getPayload());
+    } catch (Exception e) {
+      log.warn("Dropping unparseable telemetry frame: {}", e.getMessage());
+      meters.counter("pacer.telemetry.rejected", "reason", "unparseable").increment();
+      return;
+    }
+
+    if (isRegisterFrame(root)) {
+      registerClientSession(session, root.path("session_id").asText());
+      return;
+    }
+
     TelemetryEvent event;
     try {
-      event = objectMapper.readValue(message.getPayload(), TelemetryEvent.class);
+      event = objectMapper.treeToValue(root, TelemetryEvent.class);
     } catch (Exception e) {
       log.warn("Dropping unparseable telemetry frame: {}", e.getMessage());
       meters.counter("pacer.telemetry.rejected", "reason", "unparseable").increment();
@@ -63,5 +79,26 @@ public class TelemetryWebSocketHandler extends TextWebSocketHandler {
   @Override
   public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
     registry.removeByWsId(session.getId());
+  }
+
+  private boolean isRegisterFrame(JsonNode root) {
+    return "register".equalsIgnoreCase(root.path("type").asText());
+  }
+
+  private void registerClientSession(WebSocketSession session, String sessionId) {
+    if (sessionId == null || sessionId.isBlank()) {
+      meters.counter("pacer.telemetry.rejected", "reason", "register_no_session_id").increment();
+      return;
+    }
+
+    registry.register(sessionId, session);
+    meters.counter("pacer.session.registered").increment();
+    try {
+      String ack =
+          objectMapper.writeValueAsString(Map.of("type", "registered", "session_id", sessionId));
+      session.sendMessage(new TextMessage(ack));
+    } catch (Exception e) {
+      log.debug("Failed to send register ack for {}: {}", sessionId, e.getMessage());
+    }
   }
 }

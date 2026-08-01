@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PacePilot TTS Spike</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        max-width: 900px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      input,
+      textarea,
+      button {
+        font-size: 14px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        padding: 8px;
+      }
+      textarea {
+        min-height: 90px;
+      }
+      button {
+        padding: 8px 12px;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 12px;
+        overflow-x: auto;
+      }
+      .status {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PacePilot ElevenLabs TTS Spike</h1>
+    <p>
+      This page registers a WebSocket session and manually triggers
+      <code>/api/tts/speak</code>. The backend converts text to speech (ElevenLabs) and streams a
+      <code>pacer_audio</code> message back over WebSocket.
+    </p>
+
+    <div class="row">
+      <label for="sessionId">Session ID:</label>
+      <input id="sessionId" value="spike-session-1" />
+    </div>
+
+    <div class="row">
+      <button id="connectBtn" type="button">Connect WS</button>
+      <span id="wsStatus" class="status">Disconnected</span>
+    </div>
+
+    <div class="row">
+      <label for="eventId">Event ID (optional):</label>
+      <input id="eventId" placeholder="leave empty to auto-generate" />
+    </div>
+
+    <div class="row" style="align-items: flex-start;">
+      <label for="text">Cue text:</label>
+      <textarea id="text">Relax your shoulders and settle into tempo pace.</textarea>
+    </div>
+
+    <div class="row">
+      <button id="speakBtn" type="button">POST /api/tts/speak</button>
+    </div>
+
+    <h3>Last API response</h3>
+    <pre id="apiResponse">(none)</pre>
+
+    <h3>Last WS message</h3>
+    <pre id="wsResponse">(none)</pre>
+
+    <audio id="player" controls></audio>
+
+    <script>
+      const wsStatus = document.getElementById("wsStatus");
+      const apiResponse = document.getElementById("apiResponse");
+      const wsResponse = document.getElementById("wsResponse");
+      const player = document.getElementById("player");
+      let ws = null;
+
+      function buildWsUrl() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return `${protocol}//${window.location.host}/ws/telemetry`;
+      }
+
+      document.getElementById("connectBtn").addEventListener("click", () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+
+        ws = new WebSocket(buildWsUrl());
+        wsStatus.textContent = "Connecting...";
+
+        ws.addEventListener("open", () => {
+          wsStatus.textContent = "Connected";
+          const sessionId = document.getElementById("sessionId").value;
+          ws.send(JSON.stringify({ type: "register", session_id: sessionId }));
+        });
+
+        ws.addEventListener("close", () => {
+          wsStatus.textContent = "Disconnected";
+        });
+
+        ws.addEventListener("message", (event) => {
+          wsResponse.textContent = event.data;
+          const payload = JSON.parse(event.data);
+          if (payload.type === "pacer_audio" && payload.audio_base64) {
+            player.src = `data:audio/mpeg;base64,${payload.audio_base64}`;
+            player.play().catch(() => {
+              // Autoplay can be blocked by browser policies.
+            });
+          }
+        });
+      });
+
+      document.getElementById("speakBtn").addEventListener("click", async () => {
+        const body = {
+          session_id: document.getElementById("sessionId").value,
+          event_id: document.getElementById("eventId").value || undefined,
+          text: document.getElementById("text").value,
+        };
+
+        const response = await fetch("/api/tts/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const json = await response.json();
+        apiResponse.textContent = JSON.stringify(json, null, 2);
+      });
+    </script>
+  </body>
+</html>
+

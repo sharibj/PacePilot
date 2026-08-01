@@ -65,5 +65,8 @@ pacer:
   tts:
     elevenlabs-api-key: ${ELEVENLABS_API_KEY:}
     elevenlabs-voice-id: ${ELEVENLABS_VOICE_ID:}
+    elevenlabs-base-url: ${ELEVENLABS_BASE_URL:https://api.elevenlabs.io}
+    elevenlabs-model-id: ${ELEVENLABS_MODEL_ID:eleven_flash_v2_5}
+    elevenlabs-output-format: ${ELEVENLABS_OUTPUT_FORMAT:mp3_44100_128}
   guardrail:
     max-hr: ${PACER_MAX_HR_GUARDRAIL:190}

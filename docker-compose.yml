@@ -81,9 +81,12 @@ services:
       # Pacer agentic decision (n8n) — stubbed for now; fallback cue used if unset.
       N8N_PACER_WEBHOOK_URL: ${N8N_PACER_WEBHOOK_URL:-}
       N8N_PLANNER_WEBHOOK_URL: ${N8N_PLANNER_WEBHOOK_URL:-}
-      # TTS (ElevenLabs) — stubbed for now; text-only cue used if unset.
+      # TTS (ElevenLabs) — text-only fallback when the API key is unset.
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      ELEVENLABS_BASE_URL: ${ELEVENLABS_BASE_URL:-https://api.elevenlabs.io}
+      ELEVENLABS_MODEL_ID: ${ELEVENLABS_MODEL_ID:-eleven_flash_v2_5}
+      ELEVENLABS_OUTPUT_FORMAT: ${ELEVENLABS_OUTPUT_FORMAT:-mp3_44100_128}
       # Pacer tuning
       PACER_CUE_COOLDOWN_SECONDS: ${PACER_CUE_COOLDOWN_SECONDS:-20}
       PACER_N8N_TIMEOUT_MS: ${PACER_N8N_TIMEOUT_MS:-1200}
