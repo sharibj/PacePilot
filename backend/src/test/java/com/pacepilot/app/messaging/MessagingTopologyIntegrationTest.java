@@ -46,7 +46,11 @@ class MessagingTopologyIntegrationTest extends PacerIntegrationTest {
                 new TelemetryEvent.Pace(0.31, "08:18", "min/mi")),
             new TelemetryEvent.Location(52.520008, 13.404954, 34.2, 3.2));
 
-    rabbitTemplate.convertAndSend(PacerTopology.EXCHANGE, PacerTopology.RK_TELEMETRY_RAW, sent);
+    // The unifier now consumes pacer.telemetry.raw.q, so we cannot poll that queue directly for a
+    // round-trip assertion. Route through the aggregated queue instead (no consumer yet) — this
+    // still proves TelemetryEvent JSON (de)serialization and topic-exchange routing.
+    rabbitTemplate.convertAndSend(
+        PacerTopology.EXCHANGE, PacerTopology.RK_TELEMETRY_AGGREGATED, sent);
 
     await()
         .atMost(Duration.ofSeconds(5))
@@ -54,7 +58,7 @@ class MessagingTopologyIntegrationTest extends PacerIntegrationTest {
             () -> {
               TelemetryEvent received =
                   (TelemetryEvent)
-                      rabbitTemplate.receiveAndConvert(PacerTopology.Q_TELEMETRY_RAW, 500);
+                      rabbitTemplate.receiveAndConvert(PacerTopology.Q_TELEMETRY_AGGREGATED, 500);
               assertThat(received).isNotNull();
               assertThat(received.eventId()).isEqualTo(sent.eventId());
               assertThat(received.sessionId()).isEqualTo(sent.sessionId());
