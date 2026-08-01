@@ -12,8 +12,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
+// This class runs its own pipeline listener. Dirty the context after the class so the listener is
+// torn down and does not consume from the shared broker during other integration classes.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class UnifierListenerIntegrationTest extends PacerIntegrationTest {
+
+  @DynamicPropertySource
+  static void enableListener(DynamicPropertyRegistry registry) {
+    registry.add("pacer.listener.unifier.enabled", () -> "true");
+  }
 
   @Autowired RabbitTemplate rabbitTemplate;
 

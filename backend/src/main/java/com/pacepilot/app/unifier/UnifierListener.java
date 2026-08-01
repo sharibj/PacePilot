@@ -25,7 +25,10 @@ public class UnifierListener {
     this.unifierService = unifierService;
   }
 
-  @RabbitListener(queues = PacerTopology.Q_TELEMETRY_RAW)
+  @RabbitListener(
+      id = "unifier",
+      queues = PacerTopology.Q_TELEMETRY_RAW,
+      autoStartup = "${pacer.listener.unifier.enabled:true}")
   public void onRawTelemetry(TelemetryEvent event) {
     try {
       unifierService.unify(event);

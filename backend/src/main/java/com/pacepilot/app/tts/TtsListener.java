@@ -32,7 +32,10 @@ public class TtsListener {
     this.meters = meters;
   }
 
-  @RabbitListener(queues = PacerTopology.Q_CUE_TEXT)
+  @RabbitListener(
+      id = "tts",
+      queues = PacerTopology.Q_CUE_TEXT,
+      autoStartup = "${pacer.listener.tts.enabled:true}")
   public void onCue(CueTextEvent cue) {
     if (cue == null || cue.cue() == null || cue.cue().isBlank()) {
       meters.counter("pacer.cue.skipped", "reason", "empty").increment();

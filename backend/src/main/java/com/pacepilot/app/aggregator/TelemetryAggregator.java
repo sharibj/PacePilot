@@ -49,7 +49,10 @@ public class TelemetryAggregator {
     this.windowSeconds = windowSeconds;
   }
 
-  @RabbitListener(queues = PacerTopology.Q_TELEMETRY_CANONICAL)
+  @RabbitListener(
+      id = "aggregator",
+      queues = PacerTopology.Q_TELEMETRY_CANONICAL,
+      autoStartup = "${pacer.listener.aggregator.enabled:true}")
   public void onCanonicalTelemetry(TelemetryEvent event) {
     if (event == null || event.sessionId() == null) {
       log.warn("Dropping canonical telemetry with no session id: {}", event);

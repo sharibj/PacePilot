@@ -42,6 +42,8 @@ class TtsListenerIntegrationTest {
     registry.add("spring.ai.openai.api-key", () -> "test-key");
     registry.add("spring.ai.openai.base-url", () -> "http://localhost:4000");
     registry.add("app.cors.allowed-origin", () -> "*");
+    // This test drives the TTS stage directly, so its listener must be running.
+    registry.add("pacer.listener.tts.enabled", () -> "true");
   }
 
   @LocalServerPort int port;

@@ -13,13 +13,25 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Integration test that drives the {@code TelemetryAggregator} listener over a real RabbitMQ
  * broker. A telemetry sequence with an abrupt status change should surface exactly one aggregated
  * event on {@code telemetry.aggregated}; a steady sequence should surface nothing (suppression).
+ *
+ * <p>Only the aggregator listener is enabled here; the downstream n8n handler stays off so the
+ * aggregated events remain on the queue for this test to read.
  */
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class TelemetryAggregatorIntegrationTest extends PacerIntegrationTest {
+
+  @DynamicPropertySource
+  static void enableListener(DynamicPropertyRegistry registry) {
+    registry.add("pacer.listener.aggregator.enabled", () -> "true");
+  }
 
   @Autowired RabbitTemplate rabbitTemplate;
 
