@@ -47,8 +47,13 @@ public class PacerCueConfig {
         ClientHttpRequestFactorySettings.defaults()
             .withConnectTimeout(timeout)
             .withReadTimeout(timeout);
+    // Use the SimpleClientHttpRequestFactory (one fresh HttpURLConnection per request). The n8n
+    // webhook answers every call with "Connection: close"; pooling clients (JDK HttpClient, Apache
+    // HC5) then hand out a half-closed socket on the next call, which stalls until the read timeout
+    // so the request never reaches n8n. A non-pooling factory honors the close and avoids that.
     RestClient.Builder timed =
-        restClientBuilder.requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings));
+        restClientBuilder.requestFactory(
+            ClientHttpRequestFactoryBuilder.simple().build(settings));
     return new N8nCueResolver(timed, meters, webhookUrl);
   }
 
