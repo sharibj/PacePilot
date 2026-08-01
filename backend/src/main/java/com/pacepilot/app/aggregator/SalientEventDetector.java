@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,7 +23,14 @@ import org.springframework.stereotype.Component;
 @Component
 final class SalientEventDetector {
 
-  // --- Thresholds (chosen to be deterministic for tests; the WHY is documented per constant) ---
+  // --- Thresholds. Structural ones are constants; sensitivity knobs are configurable so they can
+  // be tuned per environment (e.g. lowered for a live demo) without a rebuild. ---
+
+  /** Default sensitivity values, also used by the no-arg constructor in tests. */
+  private static final int DEFAULT_MIN_SAMPLES_FOR_DRIFT = 3;
+
+  private static final double DEFAULT_PACE_DRIFT_FRACTION = 0.08;
+  private static final double DEFAULT_HR_DRIFT_BPM = 8.0;
 
   /**
    * A status transition is only salient once we have at least this many samples, so the very first
@@ -32,25 +40,38 @@ final class SalientEventDetector {
 
   /**
    * Pace/HR drift needs a baseline built from earlier samples. We require a few readings before
-   * trusting the baseline so a cold window does not emit noise. With a 30s window and ~1Hz
-   * telemetry this is reached within a few seconds.
+   * trusting the baseline so a cold window does not emit noise. Lower it to react to changes
+   * sooner (at the cost of more noise on a cold window).
    */
-  private static final int MIN_SAMPLES_FOR_DRIFT = 3;
+  private final int minSamplesForDrift;
 
   /**
-   * Fractional pace deviation (current vs. baseline) that counts as drift. 8% is large enough to
-   * ignore normal jitter but small enough that a deliberate slow-down/speed-up trips it. Example: a
-   * baseline of 300 s/km drifting past ~324 or below ~276 s/km fires.
+   * Fractional pace deviation (current vs. baseline) that counts as drift. 0.08 (8%) ignores normal
+   * jitter but trips on a deliberate slow-down/speed-up. Lower it to fire on smaller pace changes.
    */
-  private static final double PACE_DRIFT_FRACTION = 0.08;
+  private final double paceDriftFraction;
 
   /**
    * Heart-rate drift in bpm across the window that counts as salient. 8 bpm reflects a meaningful
-   * cardiac drift (fatigue/effort change) rather than beat-to-beat noise.
+   * cardiac drift rather than beat-to-beat noise. Lower it to fire on smaller HR changes.
    */
-  private static final double HR_DRIFT_BPM = 8.0;
+  private final double hrDriftBpm;
 
   private static final double METERS_PER_KM = 1000.0;
+
+  SalientEventDetector(
+      @Value("${pacer.aggregator.min-samples-for-drift:3}") int minSamplesForDrift,
+      @Value("${pacer.aggregator.pace-drift-fraction:0.08}") double paceDriftFraction,
+      @Value("${pacer.aggregator.hr-drift-bpm:8.0}") double hrDriftBpm) {
+    this.minSamplesForDrift = minSamplesForDrift;
+    this.paceDriftFraction = paceDriftFraction;
+    this.hrDriftBpm = hrDriftBpm;
+  }
+
+  /** Uses the default sensitivity thresholds. */
+  SalientEventDetector() {
+    this(DEFAULT_MIN_SAMPLES_FOR_DRIFT, DEFAULT_PACE_DRIFT_FRACTION, DEFAULT_HR_DRIFT_BPM);
+  }
 
   /**
    * Converts pace expressed in seconds per meter to seconds per kilometer. Kept here (rather than
@@ -89,21 +110,21 @@ final class SalientEventDetector {
       }
     }
 
-    if (samples.size() >= MIN_SAMPLES_FOR_DRIFT) {
+    if (samples.size() >= minSamplesForDrift) {
       List<SessionWindow.Sample> baseline = samples.subList(0, samples.size() - 1);
 
       // 2) Pace drift: newest pace vs. baseline average pace.
       Double baselinePace = averagePace(baseline);
       if (baselinePace != null && latest.paceSecPerMeter() != null && baselinePace > 0) {
         double deviation = Math.abs(latest.paceSecPerMeter() - baselinePace) / baselinePace;
-        if (deviation >= PACE_DRIFT_FRACTION) {
+        if (deviation >= paceDriftFraction) {
           return "pace_drift";
         }
       }
 
       // 3) HR drift: spread between the highest and lowest heart rate across the window.
       Double drift = heartRateDrift(samples);
-      if (drift != null && drift >= HR_DRIFT_BPM) {
+      if (drift != null && drift >= hrDriftBpm) {
         return "hr_drift";
       }
     }
