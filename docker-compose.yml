@@ -131,8 +131,8 @@ services:
   # ---- n8n stack (pacer + planner agentic workflows) ----
   # n8n, its Redis chat-memory, and the memory MCP bridge all run on the project
   # network so the backend reaches the webhook as http://n8n:5678 (no host.docker.internal
-  # hairpin). Flags per ../n8n/setup.md are required: runners enabled, settings-file
-  # permission enforcement, and insecure cookie so the editor works over plain http.
+  # hairpin). These flags are required: runners enabled, settings-file permission
+  # enforcement, and insecure cookie so the editor works over plain http.
   n8n:
     image: docker.n8n.io/n8nio/n8n:2.23.3
     ports:
@@ -160,7 +160,7 @@ services:
   # via mcp-proxy so n8n's MCP Client Tool node can reach it at http://mcp-memory:8000/mcp.
   mcp-memory:
     build:
-      context: ../n8n
+      context: ./docker/mcp-memory
     ports:
       - "8011:8000"
     volumes:
