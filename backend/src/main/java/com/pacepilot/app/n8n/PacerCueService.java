@@ -3,6 +3,8 @@ package com.pacepilot.app.n8n;
 import com.pacepilot.app.messaging.PacerTopology;
 import com.pacepilot.app.messaging.dto.AggregatedEvent;
 import com.pacepilot.app.messaging.dto.CueTextEvent;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -46,6 +48,7 @@ public class PacerCueService {
   private final CuePublisher cuePublisher;
   private final Clock clock;
   private final Duration cooldown;
+  private final MeterRegistry meters;
 
   private final Set<String> seenEventIds =
       Collections.synchronizedSet(
@@ -63,11 +66,13 @@ public class PacerCueService {
       FallbackCuePolicy fallbackCuePolicy,
       CuePublisher cuePublisher,
       Clock clock,
-      int cooldownSeconds) {
+      int cooldownSeconds,
+      MeterRegistry meters) {
     this.fallbackCuePolicy = fallbackCuePolicy;
     this.cuePublisher = cuePublisher;
     this.clock = clock;
     this.cooldown = Duration.ofSeconds(cooldownSeconds);
+    this.meters = meters;
   }
 
   @RabbitListener(
@@ -87,6 +92,7 @@ public class PacerCueService {
 
     if (!seenEventIds.add(event.eventId())) {
       log.debug("Skipping duplicate event_id={}", event.eventId());
+      meters.counter("pacer.cue.suppressed", "reason", "duplicate").increment();
       return;
     }
 
@@ -95,17 +101,22 @@ public class PacerCueService {
           "Cooldown active for session_id={}, suppressing cue for event_id={}",
           event.sessionId(),
           event.eventId());
+      meters.counter("pacer.cue.suppressed", "reason", "cooldown").increment();
       return;
     }
 
+    Timer.Sample sample = Timer.start(meters);
     CueTextEvent cue = resolveCue(event);
+    sample.stop(meters.timer("pacer.n8n.latency"));
     if (cue == null || cue.cue() == null || cue.cue().isBlank()) {
       log.debug("No cue produced for event_id={}", event.eventId());
+      meters.counter("pacer.cue.suppressed", "reason", "empty").increment();
       return;
     }
 
     lastEmitBySession.put(event.sessionId(), clock.instant());
     cuePublisher.publish(cue);
+    meters.counter("pacer.cue.published", "priority", cue.priority()).increment();
     log.info(
         "Published cue for session_id={} event_id={} priority={}",
         cue.sessionId(),

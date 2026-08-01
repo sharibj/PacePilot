@@ -1,5 +1,6 @@
 package com.pacepilot.app.n8n;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -28,7 +29,9 @@ public class PacerCueConfig {
       FallbackCuePolicy fallbackCuePolicy,
       CuePublisher cuePublisher,
       Clock pacerClock,
-      @Value("${pacer.cue.cooldown-seconds:20}") int cooldownSeconds) {
-    return new PacerCueService(fallbackCuePolicy, cuePublisher, pacerClock, cooldownSeconds);
+      @Value("${pacer.cue.cooldown-seconds:20}") int cooldownSeconds,
+      MeterRegistry meters) {
+    return new PacerCueService(
+        fallbackCuePolicy, cuePublisher, pacerClock, cooldownSeconds, meters);
   }
 }

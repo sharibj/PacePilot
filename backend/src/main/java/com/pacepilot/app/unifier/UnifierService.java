@@ -2,6 +2,7 @@ package com.pacepilot.app.unifier;
 
 import com.pacepilot.app.messaging.PacerTopology;
 import com.pacepilot.app.messaging.dto.TelemetryEvent;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -22,10 +23,13 @@ public class UnifierService {
 
   private final TelemetryValidator validator;
   private final RabbitTemplate rabbitTemplate;
+  private final MeterRegistry meters;
 
-  public UnifierService(TelemetryValidator validator, RabbitTemplate rabbitTemplate) {
+  public UnifierService(
+      TelemetryValidator validator, RabbitTemplate rabbitTemplate, MeterRegistry meters) {
     this.validator = validator;
     this.rabbitTemplate = rabbitTemplate;
+    this.meters = meters;
   }
 
   /**
@@ -37,6 +41,7 @@ public class UnifierService {
     TelemetryEvent canonical = enrich(raw);
     rabbitTemplate.convertAndSend(
         PacerTopology.EXCHANGE, PacerTopology.RK_TELEMETRY_CANONICAL, canonical);
+    meters.counter("pacer.unifier.canonical").increment();
     log.debug(
         "Unified telemetry event {} for session {} -> {}",
         canonical.eventId(),

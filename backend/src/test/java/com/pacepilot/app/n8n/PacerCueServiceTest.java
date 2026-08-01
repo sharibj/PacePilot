@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pacepilot.app.messaging.dto.AggregatedEvent;
 import com.pacepilot.app.messaging.dto.CueTextEvent;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -48,7 +49,11 @@ class PacerCueServiceTest {
         };
     service =
         new PacerCueService(
-            new FallbackCuePolicy(MAX_HR), published::add, mutableClock, COOLDOWN_SECONDS);
+            new FallbackCuePolicy(MAX_HR),
+            published::add,
+            mutableClock,
+            COOLDOWN_SECONDS,
+            new SimpleMeterRegistry());
   }
 
   private AggregatedEvent event(String eventId, String sessionId) {

@@ -3,6 +3,7 @@ package com.pacepilot.app.aggregator;
 import com.pacepilot.app.messaging.PacerTopology;
 import com.pacepilot.app.messaging.dto.AggregatedEvent;
 import com.pacepilot.app.messaging.dto.TelemetryEvent;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
@@ -31,6 +32,7 @@ public class TelemetryAggregator {
 
   private final RabbitTemplate rabbitTemplate;
   private final SalientEventDetector detector;
+  private final MeterRegistry meters;
   private final int windowSeconds;
 
   /**
@@ -43,9 +45,11 @@ public class TelemetryAggregator {
   public TelemetryAggregator(
       RabbitTemplate rabbitTemplate,
       SalientEventDetector detector,
+      MeterRegistry meters,
       @Value("${pacer.aggregator.window-seconds:30}") int windowSeconds) {
     this.rabbitTemplate = rabbitTemplate;
     this.detector = detector;
+    this.meters = meters;
     this.windowSeconds = windowSeconds;
   }
 
@@ -81,6 +85,7 @@ public class TelemetryAggregator {
         aggregated.eventId());
     rabbitTemplate.convertAndSend(
         PacerTopology.EXCHANGE, PacerTopology.RK_TELEMETRY_AGGREGATED, aggregated);
+    meters.counter("pacer.aggregator.emitted", "event_type", aggregated.eventType()).increment();
   }
 
   private SessionWindow.Sample toSample(TelemetryEvent event) {
