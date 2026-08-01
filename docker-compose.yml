@@ -67,7 +67,7 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-appdb}
       DB_USER: ${DB_USER:-app}
       DB_PASSWORD: ${DB_PASSWORD:-app_dev}
-      FRONTEND_URL: http://localhost:5173
+      FRONTEND_URL: http://localhost:5173,http://localhost:8090
       LLM_API_BASE: http://litellm:4000
       LLM_API_KEY: ${LLM_API_KEY:-sk-anything}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
