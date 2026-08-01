@@ -29,7 +29,7 @@ public class CoachConfig {
   N8nPlannerResolver n8nPlannerResolver(
       MeterRegistry meters,
       @Value("${pacer.n8n.planner-webhook-url:}") String webhookUrl,
-      @Value("${pacer.n8n.planner-timeout-ms:30000}") int timeoutMs) {
+      @Value("${pacer.n8n.planner-timeout-ms:120000}") int timeoutMs) {
     Duration timeout = Duration.ofMillis(timeoutMs);
     ClientHttpRequestFactorySettings settings =
         ClientHttpRequestFactorySettings.defaults()
