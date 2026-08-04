@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api } from '../shared/api/client';
 
 interface Message {
@@ -62,7 +63,7 @@ export default function Coach() {
           <div key={m.id} className={`coach-msg coach-msg-${m.role}`}>
             {m.role === 'coach' ? (
               <div className="coach-markdown">
-                <ReactMarkdown>{m.text}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
               </div>
             ) : (
               m.text
